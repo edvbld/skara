@@ -1,3 +1,4 @@
+Another line
 # OpenJDK Project Skara
 
 The goal of Project Skara is to investigate alternative SCM and code review
