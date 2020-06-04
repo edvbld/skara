@@ -77,7 +77,7 @@ public class GitPublish {
     }
 
     private static int pushAndFollow(String remote, Branch b, boolean isQuiet, String browser) throws IOException, InterruptedException {
-        var pb = new ProcessBuilder("git", "push", "--set-upstream", remote, b.name());
+        var pb = new ProcessBuilder("git", "push", "--set-upstream", "--progress", remote, b.name());
         if (isQuiet) {
             pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
         } else {
