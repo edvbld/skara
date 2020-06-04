@@ -67,7 +67,6 @@ public class GitPublish {
 
             if (shouldForward) {
                 target.write(b);
-                target.flush();
             }
         }
 
@@ -85,7 +84,7 @@ public class GitPublish {
         }
         pb.redirectError(ProcessBuilder.Redirect.PIPE);
         var p = pb.start();
-        var recording = new RecordingOutputStream(System.err, isQuiet);
+        var recording = new RecordingOutputStream(System.err, !isQuiet);
         p.getErrorStream().transferTo(recording);
         int err = p.waitFor();
         if (err == 0) {
