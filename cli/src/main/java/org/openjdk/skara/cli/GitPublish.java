@@ -95,13 +95,10 @@ public class GitPublish {
                     if (line.startsWith("remote:")) {
                         var parts = line.split("\\s");
                         for (var part : parts) {
-                            try {
-                                var uri = URI.create(part);
-                                var browser = new ProcessBuilder("firefox", uri.toString());
+                            if (part.startsWith("https://")) {
+                                var browser = new ProcessBuilder("firefox", part);
                                 browser.start().waitFor(); // don't care about status
                                 break;
-                            } catch (IllegalArgumentException e) {
-                                continue;
                             }
                         }
                     }
