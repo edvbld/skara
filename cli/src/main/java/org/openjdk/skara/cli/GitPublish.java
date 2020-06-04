@@ -44,69 +44,75 @@ public class GitPublish {
         };
     }
 
-    private static int pushAndTrack(String remote, Branch b, boolean isQuiet, boolean shouldFollow) throws IOException, InterruptedException {
-        var cmd = new ArrayList<String>();
-        cmd.addAll(List.of("git", "push"));
-        if (isQuiet) {
-            cmd.add("--quiet");
-        } else if (shouldFollow) {
-            cmd.add("--progress");
-        }
-        cmd.addAll(List.of("--set-upstream", remote, b.name()));
-        var pb = new ProcessBuilder(cmd);
+    private static class RecordingOutputStream extends OutputStream {
+        private final OutputStream target;
+        private final boolean shouldForward;
+        private byte[] output;
+        private int index;
 
+        RecordingOutputStream(OutputStream target, boolean shouldForward) {
+            this.target = target;
+            this.shouldForward = shouldForward;
+            this.output = new byte[1024];
+            this.index = 0;
+        }
+
+        @Override
+        public void write(int b) throws IOException {
+            if (index == output.length) {
+                output = Arrays.copyOf(output, output.length * 2);
+            }
+            output[index] = (byte) b;
+            index++;
+
+            if (shouldForward) {
+                target.write(b);
+            }
+        }
+
+        String output() {
+            return new String(output, 0, index + 1, StandardCharsets.UTF_8);
+        }
+    }
+
+    private static int pushAndFollow(String remote, Branch b, boolean isQuiet, String browser) throws IOException, InterruptedException {
+        var pb = new ProcessBuilder("git", "push", "--set-upstream", remote, b.name());
         if (isQuiet) {
             pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
-            pb.redirectError(ProcessBuilder.Redirect.PIPE);
-            var p = pb.start();
-            var errorOutput = p.getErrorStream().readAllBytes();
-            int err = p.waitFor();
-            if (err != 0) {
-                System.out.write(errorOutput, 0, errorOutput.length);
-                System.out.flush();
-            }
-            return err;
-        }
-
-        if (shouldFollow) {
+        } else {
             pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
-            pb.redirectError(ProcessBuilder.Redirect.PIPE);
-            var p = pb.start();
-            var stderr = p.getErrorStream();
-            int value = 0;
-            var output = new byte[1024];
-            var index = 0;
-            while (value != -1) {
-                value = stderr.read();
-                if (value != -1) {
-                    if (index == output.length) {
-                        output = Arrays.copyOf(output, output.length * 2);
-                    }
-                    System.err.write((byte) value);
-                    System.err.flush();
-                    output[index] = (byte) value;
-                    index++;
-                }
-            }
-            int err = p.waitFor();
-            if (err == 0) {
-                var lines = new String(output, 0, index + 1, StandardCharsets.UTF_8).lines().collect(Collectors.toList());
-                for (var line : lines) {
-                    if (line.startsWith("remote:")) {
-                        var parts = line.split("\\s");
-                        for (var part : parts) {
-                            if (part.startsWith("https://")) {
-                                var browser = new ProcessBuilder("firefox", part);
-                                browser.start().waitFor(); // don't care about status
-                                break;
-                            }
+        }
+        pb.redirectError(ProcessBuilder.Redirect.PIPE);
+        var p = pb.start();
+        var recording = new RecordingOutputStream(System.err, isQuiet);
+        p.getErrorStream().transferTo(recording);
+        int err = p.waitFor();
+        if (err == 0) {
+            var lines = recording.output().lines().collect(Collectors.toList());
+            for (var line : lines) {
+                if (line.startsWith("remote:")) {
+                    var parts = line.split("\\s");
+                    for (var part : parts) {
+                        if (part.startsWith("https://")) {
+                            var browserPB = new ProcessBuilder(browser, part);
+                            browserPB.start().waitFor(); // don't care about status
+                            break;
                         }
                     }
                 }
             }
-            return err;
         }
+        return err;
+    }
 
+    private static int push(String remote, Branch b, boolean isQuiet) throws IOException, InterruptedException {
+        var cmd = new ArrayList<String>();
+        cmd.addAll(List.of("git", "push"));
+        if (isQuiet) {
+            cmd.add("--quiet");
+        }
+        cmd.addAll(List.of("--set-upstream", remote, b.name()));
+        var pb = new ProcessBuilder(cmd);
         pb.inheritIO();
         return pb.start().waitFor();
     }
@@ -116,10 +122,18 @@ public class GitPublish {
             return arguments.get(name).asString();
         }
 
-        var lines = repo.config("sync." + name);
+        var lines = repo.config("publish." + name);
         return lines.size() == 1 ? lines.get(0) : null;
     }
 
+    private static boolean getSwitch(String name, Arguments arguments, ReadOnlyRepository repo) throws IOException {
+        if (arguments.contains(name)) {
+            return true;
+        }
+
+        var lines = repo.config("publish." + name);
+        return lines.size() == 1 && lines.get(0).toLowerCase().equals("true");
+    }
 
     public static void main(String[] args) throws IOException, InterruptedException {
         var flags = List.of(
@@ -195,20 +209,27 @@ public class GitPublish {
             System.exit(1);
         }
 
-        var isQuiet = arguments.contains("quiet");
-        if (!isQuiet) {
-            var lines = repo.config("publish.quiet");
-            isQuiet = lines.size() == 1 && lines.get(0).toLowerCase().equals("true");
+        var branch = repo.currentBranch().get();
+        var isQuiet = getSwitch("quiet", arguments, repo);
+        var shouldFollow = getSwitch("follow", arguments, repo);
+        int err = 0;
+        if (shouldFollow) {
+            var browser = getOption("browser", arguments, repo);
+            if (browser == null) {
+                var os = System.getProperty("os.name").toLowerCase();
+                if (os.startsWith("win")) {
+                    browser = "explorer";
+                } else if (os.startsWith("mac")) {
+                    browser = "open";
+                } else {
+                    // Assume GNU/Linux
+                    browser = "xdg-open";
+                }
+            }
+            err = pushAndFollow(remote, branch, isQuiet, browser);
+        } else {
+            err = push(remote, branch, isQuiet);
         }
-
-        var shouldFollow = arguments.contains("follow");
-        if (!shouldFollow) {
-            var lines = repo.config("publish.follow");
-            shouldFollow = lines.size() == 1 && lines.get(0).toLowerCase().equals("true");
-        }
-        var err = pushAndTrack(remote, repo.currentBranch().get(), isQuiet, shouldFollow);
-        if (err != 0) {
-            System.exit(err);
-        }
+        System.exit(err);
     }
 }
