@@ -27,9 +27,11 @@ import org.openjdk.skara.vcs.*;
 import org.openjdk.skara.version.Version;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.net.URI;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 
@@ -42,7 +44,7 @@ public class GitPublish {
         };
     }
 
-    private static int pushAndTrack(String remote, Branch b, boolean isQuiet) throws IOException, InterruptedException {
+    private static int pushAndTrack(String remote, Branch b, boolean isQuiet, boolean shouldFollow) throws IOException, InterruptedException {
         var cmd = new ArrayList<String>();
         cmd.addAll(List.of("git", "push"));
         if (isQuiet) {
@@ -53,17 +55,45 @@ public class GitPublish {
         if (isQuiet) {
             pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
             pb.redirectError(ProcessBuilder.Redirect.PIPE);
-        } else {
-            pb.inheritIO();
+            var p = pb.start();
+            var errorOutput = p.getErrorStream().readAllBytes();
+            int err = p.waitFor();
+            if (err != 0) {
+                System.out.write(errorOutput, 0, errorOutput.length);
+                System.out.flush();
+            }
+            return err;
         }
-        var p = pb.start();
-        var errorOutput = p.getErrorStream().readAllBytes();
-        int err = p.waitFor();
-        if (err != 0) {
-            System.out.write(errorOutput, 0, errorOutput.length);
-            System.out.flush();
+
+        if (shouldFollow) {
+            pb.redirectOutput(ProcessBuilder.Redirect.PIPE);
+            pb.redirectError(ProcessBuilder.Redirect.INHERIT);
+            var p = pb.start();
+            var stdout = p.getInputStream().readAllBytes();
+            int err = p.waitFor();
+            if (err == 0) {
+                var lines = new String(stdout, StandardCharsets.UTF_8).lines().collect(Collectors.toList());
+                for (var line : lines) {
+                    if (line.startsWith("remote:")) {
+                        var parts = line.split("\\s");
+                        for (var part : parts) {
+                            try {
+                                var uri = URI.create(part);
+                                var browser = new ProcessBuilder("firefox", uri.toString());
+                                browser.start().waitFor(); // don't care about status
+                                break;
+                            } catch (IllegalArgumentException e) {
+                                continue;
+                            }
+                        }
+                    }
+                }
+            }
+            return err;
         }
-        return err;
+
+        pb.inheritIO();
+        return pb.start().waitFor();
     }
 
     private static String getOption(String name, Arguments arguments, ReadOnlyRepository repo) throws IOException {
@@ -81,6 +111,10 @@ public class GitPublish {
             Switch.shortcut("q")
                   .fullname("quiet")
                   .helptext("Silence all output")
+                  .optional(),
+            Switch.shortcut("")
+                  .fullname("follow")
+                  .helptext("Open link provided by remote")
                   .optional(),
             Switch.shortcut("")
                   .fullname("verbose")
@@ -151,7 +185,13 @@ public class GitPublish {
             var lines = repo.config("publish.quiet");
             isQuiet = lines.size() == 1 && lines.get(0).toLowerCase().equals("true");
         }
-        var err = pushAndTrack(remote, repo.currentBranch().get(), isQuiet);
+
+        var shouldFollow = arguments.contains("follow");
+        if (!shouldFollow) {
+            var lines = repo.config("publish.follow");
+            shouldFollow = lines.size() == 1 && lines.get(0).toLowerCase().equals("true");
+        }
+        var err = pushAndTrack(remote, repo.currentBranch().get(), isQuiet, shouldFollow);
         if (err != 0) {
             System.exit(err);
         }
