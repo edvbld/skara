@@ -49,9 +49,12 @@ public class GitPublish {
         cmd.addAll(List.of("git", "push"));
         if (isQuiet) {
             cmd.add("--quiet");
+        } else if (shouldFollow) {
+            cmd.add("--progress");
         }
         cmd.addAll(List.of("--set-upstream", remote, b.name()));
         var pb = new ProcessBuilder(cmd);
+
         if (isQuiet) {
             pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
             pb.redirectError(ProcessBuilder.Redirect.PIPE);
@@ -66,13 +69,28 @@ public class GitPublish {
         }
 
         if (shouldFollow) {
-            pb.redirectOutput(ProcessBuilder.Redirect.PIPE);
-            pb.redirectError(ProcessBuilder.Redirect.INHERIT);
+            pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+            pb.redirectError(ProcessBuilder.Redirect.PIPE);
             var p = pb.start();
-            var stdout = p.getInputStream().readAllBytes();
+            var stderr = p.getErrorStream();
+            int value = 0;
+            var output = new byte[1024];
+            var index = 0;
+            while (value != -1) {
+                value = stderr.read();
+                if (value != -1) {
+                    if (index == output.length) {
+                        output = Arrays.copyOf(output, output.length * 2);
+                    }
+                    System.err.write((byte) value);
+                    System.err.flush();
+                    output[index] = (byte) value;
+                    index++;
+                }
+            }
             int err = p.waitFor();
             if (err == 0) {
-                var lines = new String(stdout, StandardCharsets.UTF_8).lines().collect(Collectors.toList());
+                var lines = new String(output, 0, index + 1, StandardCharsets.UTF_8).lines().collect(Collectors.toList());
                 for (var line : lines) {
                     if (line.startsWith("remote:")) {
                         var parts = line.split("\\s");
