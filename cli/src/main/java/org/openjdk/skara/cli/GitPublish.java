@@ -67,6 +67,7 @@ public class GitPublish {
 
             if (shouldForward) {
                 target.write(b);
+                target.flush();
             }
         }
 
