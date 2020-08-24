@@ -26,7 +26,7 @@ package org.openjdk.skara.bots.checkout;
 import org.openjdk.skara.bot.*;
 import org.openjdk.skara.vcs.*;
 import org.openjdk.skara.vcs.openjdk.convert.*;
-import org.openjdk.skara.storage.Storage;
+import org.openjdk.skara.storage.StorageBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -44,14 +44,14 @@ public class CheckoutBot implements Bot, WorkItem {
     private final Branch branch;
     private final Path to;
     private final Path storage;
-    private final Storage<Mark> marks;
+    private final StorageBuilder<Mark> marksStorage;
 
-    CheckoutBot(URI from, Branch branch, Path to, Path storage, Storage<Mark> marks) {
+    CheckoutBot(URI from, Branch branch, Path to, Path storage, StorageBuilder<Mark> marksStorage) {
         this.from = from;
         this.branch = branch;
         this.to = to;
         this.storage = storage;
-        this.marks = marks;
+        this.marksStorage = marksStorage;
     }
 
     private static String urlEncode(Path p) {
@@ -96,6 +96,10 @@ public class CheckoutBot implements Bot, WorkItem {
                     new IllegalStateException("Repository vanished from " + fromDir));
             }
 
+            var repoName = Path.of(from.getPath()).getFileName().toString();
+            var marksDir = scratch.resolve("checkout").resolve("marks").resolve(repoName);
+            Files.createDirectories(marksDir);
+            var marks = marksStorage.materialize(marksDir);
             var converter = new GitToHgConverter(branch);
             try {
                 if (!Files.exists(to)) {
@@ -106,11 +110,11 @@ public class CheckoutBot implements Bot, WorkItem {
                     var toRepo = Repository.get(to).orElseThrow(() ->
                         new IllegalStateException("Repository vanished from " + to));
                     var existing = new ArrayList<Mark>(marks.current());
-                    existing.sort();
+                    Collections.sort(existing);
                     converter.pull(fromRepo, from, toRepo, existing);
                 }
             } finally {
-                storage.put(converter.marks());
+                marks.put(converter.marks());
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);

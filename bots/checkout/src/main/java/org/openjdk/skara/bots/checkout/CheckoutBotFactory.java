@@ -24,6 +24,7 @@ package org.openjdk.skara.bots.checkout;
 
 import org.openjdk.skara.bot.*;
 import org.openjdk.skara.vcs.*;
+import org.openjdk.skara.vcs.openjdk.convert.Mark;
 
 import java.util.*;
 import java.net.URI;
@@ -54,17 +55,10 @@ public class CheckoutBotFactory implements BotFactory {
             var fromBranch = new Branch(from.substring(lastColon + 1));
             var to = Path.of(repo.get("to").asString());
 
+            var repoName = Path.of(fromURI.getPath()).getFileName().toString();
+            var markStorage = MarkStorage.create(marksRepo, marksUser, repoName);
 
-            var repoName = fromURI.getPath().getFileName().toString();
-            var marksDir = scratch.resolve("checkout").resolve("marks").resolve(repoName);
-            Files.createDirectories(marksDir);
-            var marks = new StorageBuilder<Mark>(repoName + ".marks.txt")
-                .remoteRepository(marksRepo, "master", marksUser.name(), marksUser.email(), "Updated marks for " + repoName)
-                .serializer()
-                .deserializer()
-                .materialize(marksDir);
-
-            bots.add(new CheckoutBot(fromURI, fromBranch, to, storage, marks));
+            bots.add(new CheckoutBot(fromURI, fromBranch, to, storage, markStorage));
         }
 
         return bots;
