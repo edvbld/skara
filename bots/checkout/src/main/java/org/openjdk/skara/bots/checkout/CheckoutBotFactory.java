@@ -43,6 +43,9 @@ public class CheckoutBotFactory implements BotFactory {
         var specific = configuration.specific();
         var storage = configuration.storageFolder();
 
+        var marksRepo = configuration.repository(specific.get("marks").get("repo").asString());
+        var marksUser = Author.fromString(specific.get("marks").get("author").asString());
+
         var bots = new ArrayList<Bot>();
         for (var repo : specific.get("repositories").asArray()) {
             var from = repo.get("from").asString();
@@ -50,7 +53,18 @@ public class CheckoutBotFactory implements BotFactory {
             var fromURI = URI.create(from.substring(0, lastColon));
             var fromBranch = new Branch(from.substring(lastColon + 1));
             var to = Path.of(repo.get("to").asString());
-            bots.add(new CheckoutBot(fromURI, fromBranch, to, storage));
+
+
+            var repoName = fromURI.getPath().getFileName().toString();
+            var marksDir = scratch.resolve("checkout").resolve("marks").resolve(repoName);
+            Files.createDirectories(marksDir);
+            var marks = new StorageBuilder<Mark>(repoName + ".marks.txt")
+                .remoteRepository(marksRepo, "master", marksUser.name(), marksUser.email(), "Updated marks for " + repoName)
+                .serializer()
+                .deserializer()
+                .materialize(marksDir);
+
+            bots.add(new CheckoutBot(fromURI, fromBranch, to, storage, marks));
         }
 
         return bots;

@@ -26,6 +26,7 @@ module org.openjdk.skara.bots.checkout {
     requires org.openjdk.skara.network;
     requires org.openjdk.skara.bot;
     requires org.openjdk.skara.process;
+    requires org.openjdk.skara.storage;
     requires java.logging;
 
     provides org.openjdk.skara.bot.BotFactory with org.openjdk.skara.bots.checkout.CheckoutBotFactory;

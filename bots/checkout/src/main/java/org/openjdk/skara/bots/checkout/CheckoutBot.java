@@ -26,6 +26,7 @@ package org.openjdk.skara.bots.checkout;
 import org.openjdk.skara.bot.*;
 import org.openjdk.skara.vcs.*;
 import org.openjdk.skara.vcs.openjdk.convert.*;
+import org.openjdk.skara.storage.Storage;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -43,12 +44,14 @@ public class CheckoutBot implements Bot, WorkItem {
     private final Branch branch;
     private final Path to;
     private final Path storage;
+    private final Storage<Mark> marks;
 
-    CheckoutBot(URI from, Branch branch, Path to, Path storage) {
+    CheckoutBot(URI from, Branch branch, Path to, Path storage, Storage<Mark> marks) {
         this.from = from;
         this.branch = branch;
         this.to = to;
         this.storage = storage;
+        this.marks = marks;
     }
 
     private static String urlEncode(Path p) {
@@ -79,7 +82,7 @@ public class CheckoutBot implements Bot, WorkItem {
     }
 
     @Override
-    public Collection<WorkItem> run(Path scratchPath) {
+    public Collection<WorkItem> run(Path scratch) {
         try {
             var fromDir = storage.resolve(urlEncode(from));
             Repository fromRepo = null;
@@ -93,9 +96,6 @@ public class CheckoutBot implements Bot, WorkItem {
                     new IllegalStateException("Repository vanished from " + fromDir));
             }
 
-            var marksFile = storage.resolve("marks").resolve(urlEncode(to)).resolve("marks.txt");
-            Files.createDirectories(marksFile.getParent());
-
             var converter = new GitToHgConverter(branch);
             try {
                 if (!Files.exists(to)) {
@@ -105,29 +105,12 @@ public class CheckoutBot implements Bot, WorkItem {
                 } else {
                     var toRepo = Repository.get(to).orElseThrow(() ->
                         new IllegalStateException("Repository vanished from " + to));
-                    var existing = Files.lines(marksFile).map(line -> line.split(" "))
-                                                         .map(words -> new Mark(Integer.parseInt(words[0]),
-                                                                                new Hash(words[1]),
-                                                                                new Hash(words[2])))
-                                                         .collect(Collectors.toList());
+                    var existing = new ArrayList<Mark>(marks.current());
+                    existing.sort();
                     converter.pull(fromRepo, from, toRepo, existing);
                 }
             } finally {
-                var marks = converter.marks();
-                if (!marks.isEmpty()) {
-                    try (var writer = Files.newBufferedWriter(marksFile)) {
-                        for (var mark : marks) {
-                            writer.write(Integer.toString(mark.key()));
-                            writer.write(" ");
-                            writer.write(mark.hg().hex());
-                            writer.write(" ");
-                            writer.write(mark.git().hex());
-                            writer.newLine();
-                        }
-                    } catch (IOException e) {
-                        // pass
-                    }
-                }
+                storage.put(converter.marks());
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
