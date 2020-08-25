@@ -292,6 +292,7 @@ public class GitToHgConverter implements Converter {
     public List<Mark> convert(ReadOnlyRepository gitRepo, Repository hgRepo, List<Mark> oldMarks) throws IOException {
         var gitToHg = new HashMap<Hash, Hash>();
         for (var mark : oldMarks) {
+            System.out.println("mark: " + mark.toString());
             if (mark.tag().isPresent()) {
                 gitToHg.put(mark.git(), mark.tag().get());
             } else {

@@ -95,6 +95,8 @@ public class CheckoutBot implements Bot, WorkItem {
                 fromRepo = Repository.get(fromDir).orElseThrow(() ->
                     new IllegalStateException("Repository vanished from " + fromDir));
             }
+            fromRepo.checkout(branch);
+            fromRepo.pull("origin", branch.name());
 
             var repoName = Path.of(from.getPath()).getFileName().toString();
             var marksDir = scratch.resolve("checkout").resolve("marks").resolve(repoName);
@@ -111,7 +113,7 @@ public class CheckoutBot implements Bot, WorkItem {
                         new IllegalStateException("Repository vanished from " + to));
                     var existing = new ArrayList<Mark>(marks.current());
                     Collections.sort(existing);
-                    converter.pull(fromRepo, from, toRepo, existing);
+                    converter.convert(fromRepo, toRepo, existing);
                 }
             } finally {
                 marks.put(converter.marks());

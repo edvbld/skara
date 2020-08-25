@@ -71,14 +71,19 @@ class MarkStorage {
                 sb.append(" ");
                 sb.append(mark.tag().get().hex());
             }
+            sb.append("\n");
         }
+        System.out.println("serializing: " + sb.toString());
         return sb.toString();
     }
 
     private static Set<Mark> deserialize(String current) {
-        return current.lines()
-                      .map(MarkStorage::deserializeMark)
-                      .collect(Collectors.toSet());
+        System.out.println("deserializing: " + current);
+        var res = current.lines()
+                         .map(MarkStorage::deserializeMark)
+                         .collect(Collectors.toSet());
+        System.out.println("size: " + res.size());
+        return res;
     }
 
     static StorageBuilder<Mark> create(HostedRepository repo, Author user, String name) {
