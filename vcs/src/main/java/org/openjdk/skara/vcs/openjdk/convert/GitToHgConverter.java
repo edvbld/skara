@@ -301,6 +301,7 @@ public class GitToHgConverter implements Converter {
             marks.add(mark);
         }
         var gitCommits = gitRepo.commitMetadata(branch.name(), true);
+        System.out.println("gitCommits.size(): " + gitCommits.size());
         var converted = oldMarks.stream()
                                 .map(Mark::git)
                                 .collect(Collectors.toSet());

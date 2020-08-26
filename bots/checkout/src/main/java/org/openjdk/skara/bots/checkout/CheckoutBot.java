@@ -88,10 +88,12 @@ public class CheckoutBot implements Bot, WorkItem {
             Repository fromRepo = null;
             if (!Files.exists(fromDir)) {
                 Files.createDirectories(fromDir);
-                log.info("Cloning " + from + " to " + fromDir);
+                System.out.println("Cloning " + from + " to " + fromDir);
+                //log.info("Cloning " + from + " to " + fromDir);
                 fromRepo = Repository.clone(from, fromDir);
             } else {
-                log.info("Getting existing \"from\" repository from " + fromDir);
+                //log.info("Getting existing \"from\" repository from " + fromDir);
+                System.out.println("Getting existing from repo from " + fromDir);
                 fromRepo = Repository.get(fromDir).orElseThrow(() ->
                     new IllegalStateException("Repository vanished from " + fromDir));
             }
@@ -105,17 +107,21 @@ public class CheckoutBot implements Bot, WorkItem {
             var converter = new GitToHgConverter(branch);
             try {
                 if (!Files.exists(to)) {
+                    System.out.println("to repo not existing");
                     Files.createDirectories(to);
                     var toRepo = Repository.init(to, VCS.HG);
                     converter.convert(fromRepo, toRepo);
                 } else {
+                    System.out.println("found existing to repo");
                     var toRepo = Repository.get(to).orElseThrow(() ->
                         new IllegalStateException("Repository vanished from " + to));
                     var existing = new ArrayList<Mark>(marks.current());
+                    System.out.println("existing.size(): " + existing.size());
                     Collections.sort(existing);
                     converter.convert(fromRepo, toRepo, existing);
                 }
             } finally {
+                System.out.println("putting " +  converter.marks().size() + " marks");
                 marks.put(converter.marks());
             }
         } catch (IOException e) {

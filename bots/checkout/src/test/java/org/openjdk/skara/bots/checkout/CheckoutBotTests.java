@@ -109,12 +109,18 @@ class CheckoutBotTests {
 
             var hgRepo = Repository.get(hgDir).orElseThrow();
             assertEquals(3, hgRepo.commitMetadata().size());
+            assertEquals(3, gitLocalRepo.commitMetadata().size());
 
             var readme = gitDir.resolve("README");
             Files.write(readme, List.of("An updated line"), WRITE, APPEND);
             gitLocalRepo.add(readme);
             var head = gitLocalRepo.commit("Updated Final README", "duke", "duke@openjdk.java.net");
             gitLocalRepo.push(head, gitHostedRepo.url(), gitLocalRepo.defaultBranch().name(), true);
+
+            var gitClone = Repository.clone(gitHostedRepo.url(), tmp.path().resolve("clone"));
+            assertEquals(4, gitClone.commitMetadata("origin/master").size());
+
+            System.out.println("RE-RUNNING BOT");
 
             runner.runPeriodicItems(bot);
             assertEquals(4, hgRepo.commitMetadata().size());
