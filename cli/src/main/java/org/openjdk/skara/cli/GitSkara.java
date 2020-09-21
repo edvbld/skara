@@ -125,7 +125,7 @@ public class GitSkara {
             }
         } else {
             var lines = config("include.path", false);
-            var entry = lines.stream().filter(l -> l.endsWith("skara.gitconfig")).findFirst();
+            var entry = lines.stream().filter(l -> l.endsWith("skara.py")).findFirst();
             if (entry.isEmpty()) {
                 System.err.println("error: could not find skara repository");
                 System.exit(1);
