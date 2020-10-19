@@ -65,8 +65,10 @@ public class UnifiedDiffParser {
                 nextHeader++;
             }
 
-            var hunkLines = lines.subList(i, nextHeader);
-            hunks.addAll(parseSingleFileDiff(sourceRange, targetRange, hunkLines));
+            var hunkLines = lines.subList(i + 1, nextHeader);
+            if (!hunkLines.isEmpty()) {
+                hunks.addAll(parseSingleFileDiff(sourceRange, targetRange, hunkLines));
+            }
             i = nextHeader;
         }
 
