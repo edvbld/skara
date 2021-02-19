@@ -23,6 +23,7 @@
 package org.openjdk.skara.bots.tester;
 
 import org.openjdk.skara.forge.*;
+import org.openjdk.skara.host.HostUser;
 import org.openjdk.skara.json.JSONValue;
 import org.openjdk.skara.vcs.*;
 
@@ -183,5 +184,14 @@ class InMemoryHostedRepository implements HostedRepository {
     @Override
     public List<CommitComment> recentCommitComments() {
         return List.of();
+    }
+
+    @Override
+    public void addCollaborator(HostUser user, boolean canPush) {
+    }
+
+    @Override
+    public boolean canPush(HostUser user) {
+        return false;
     }
 }

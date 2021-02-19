@@ -23,6 +23,7 @@
 package org.openjdk.skara.forge.github;
 
 import org.openjdk.skara.forge.*;
+import org.openjdk.skara.host.HostUser;
 import org.openjdk.skara.json.*;
 import org.openjdk.skara.network.*;
 import org.openjdk.skara.vcs.*;
@@ -499,5 +500,23 @@ public class GitHubRepository implements HostedRepository {
         } else {
             return WorkflowStatus.ENABLED;
         }
+    }
+
+    @Override
+    public void addCollaborator(HostUser user, boolean canPush) {
+        var query = JSON.object().put("permission", canPush ? "push" : "pull");
+        request.put("collaborators/" + user.username())
+               .body(query)
+               .execute();
+
+    }
+
+    @Override
+    public boolean canPush(HostUser user) {
+        var permission = request.get("collaborators/" + user.username())
+                                .execute()
+                                .get("permission")
+                                .asString();
+        return permission.equals("admin") || permission.equals("write");
     }
 }

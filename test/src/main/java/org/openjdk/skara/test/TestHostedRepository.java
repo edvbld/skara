@@ -23,6 +23,7 @@
 package org.openjdk.skara.test;
 
 import org.openjdk.skara.forge.*;
+import org.openjdk.skara.host.HostUser;
 import org.openjdk.skara.issuetracker.Issue;
 import org.openjdk.skara.json.JSONValue;
 import org.openjdk.skara.vcs.*;
@@ -42,6 +43,7 @@ public class TestHostedRepository extends TestIssueProject implements HostedRepo
     private final Pattern pullRequestPattern;
     private final Map<Hash, List<CommitComment>> commitComments;
     private int nextCommitCommentId;
+    private Map<String, Boolean> collaborators = new HashMap<>();
 
     public TestHostedRepository(TestHost host, String projectName, Repository localRepository) {
         super(host, projectName);
@@ -266,6 +268,16 @@ public class TestHostedRepository extends TestIssueProject implements HostedRepo
     @Override
     public WorkflowStatus workflowStatus() {
         return WorkflowStatus.ENABLED;
+    }
+
+    @Override
+    public void addCollaborator(HostUser user, boolean canPush) {
+        collaborators.put(user.username(), canPush);
+    }
+
+    @Override
+    public boolean canPush(HostUser user) {
+        return collaborators.getOrDefault(user.username(), false);
     }
 
     Repository localRepository() {
